@@ -1,6 +1,19 @@
 <?php
 
 class XliffNode{
+	
+	static protected $mapNameToClass = array(
+		'xliff'		=> 'XliffDocument',
+		'file'		=> 'XliffFile',
+		'body'		=> 'XliffFileBody',
+		'header'	=> 'XliffFileHeader',
+		'group'		=> 'XliffUnitsGroup',
+		'trans-unit'=> 'XliffUnit',
+		'source'	=> 'XliffNode',
+		'target'	=> 'XliffNode',
+	);
+	
+	
 	protected $attributes = array();
 	protected $containers = array();
 	protected $supportedContainers = array();
@@ -39,6 +52,13 @@ class XliffNode{
 		return $this;
 	}
 	
+	function setAttributes($attr_array){
+		foreach($attr_array as $key=>$val){
+			$this->setAttribute($key, $val);
+		}
+		return $this;
+	}
+	
 	public function getTextContent()
 	{
 	    return $this->textContent;
@@ -50,6 +70,18 @@ class XliffNode{
 	    return $this;
 	}
 	
+	public function appendNode(XliffNode $node){
+		
+		if (!empty($this->supportedContainers[$node->getName().'s'])){
+			$this->containers[$node->getName().'s'][] = $node;
+		}elseif(!empty($this->supportedNodes[$node->getName()])){
+			$this->nodes[$node->getName()] = $node;
+		}else{
+			
+		}
+		return $this;
+	}
+	
 	
 	
 	/**
@@ -57,6 +89,11 @@ class XliffNode{
 	 * or $obj->containers()
 	 */
 	function __call($name, $args){
+		$mapNames = array(
+			'/^unit/' => 'trans-unit'			
+		);
+		$name = preg_replace(array_keys($mapNames), array_values($mapNames), $name);
+		//var_dump($name);
 		//plural
 		if (!empty($this->supportedContainers[$name]) ){
 			return $this->containers[$name];
@@ -107,6 +144,38 @@ class XliffNode{
 			$element->appendChild($textNode);
 		}
 		return $element;
+	}
+	
+	public static function fromDOMElement(DOMNode $element){
+		if ($element instanceOf DOMText){
+			return $element->nodeValue;
+		}else{
+			$name = $element->tagName;
+			if (empty(self::$mapNameToClass[$element->tagName]))
+				throw new Exception(sprintf("Tag name '%s' is unsupported",$name));
+	
+			//Create the XliffNode
+			$cls = self::$mapNameToClass[$element->tagName];
+			
+			$node = new $cls($element->tagName);
+			/* @var $node XliffNode */
+			
+			foreach ($element->attributes as $attrName=>$attrNode){
+				$node->setAttribute($attrName, $attrNode->nodeValue);
+			}
+			
+			foreach($element->childNodes as $child){
+				$res = self::fromDOMElement($child);
+				if (is_string($res)){
+					$node->setTextContent($res);
+				}else{
+					$node->appendNode($res);
+				}
+			}
+		}
+		
+		return $node;
+		
 	}
 	
 
@@ -165,6 +234,39 @@ class XliffDocument extends XliffNode{
         
     }
     
+    public static function fromDOM(DOMDocument $doc){
+    	if (!($doc->firstChild &&  $doc->firstChild->tagName=='xliff'))
+    		throw new Exception("Not an XLIFF document");
+    		
+    	
+    	$xlfDoc = $doc->firstChild;
+    	/* @var $xlfDoc DOMElement */
+    	
+    	$ver = $xlfDoc->getAttribute('version') ? $xlfDoc->getAttribute('version') : '1.2';
+    	$xliffNamespace = $xlfDoc->namespaceURI;
+    	 
+    	$xliff = new XliffDocument($ver);
+    	
+    	
+    	return self::fromDOMElement($xlfDoc);
+    	return $xliff;
+    	
+    	//Use XPATH
+    	$xpath = new DOMXPath($xlfDoc);
+    	$xpath->registerNamespace('xlf', $xliffNamespace);
+    	foreach($xpath->query('/xlf:xliff/xlf:file') as $fileElement){
+    		/* @var $fileElement DOMElement */
+    		$xliff->file(TRUE);
+    		
+	    	foreach ($fileElement->attributes as $attrName => $attrNode) {
+	    		$xliff->file()->setAttribute($attrName, $attrNode->nodeValue);	
+			}
+    		
+			
+			
+    	}
+    }
+    
    
     
 }
@@ -188,9 +290,10 @@ class XliffFile extends XliffNode{
 class XliffFileHeader extends XliffNode{
 	protected $name = 'header';
 }
+
+
 /**
  * Enter description here ...
- * @author oyagev
  * @method XliffUnitsGroup group()
  * @method XliffUnit unit()
  * @method array groups()
@@ -200,15 +303,20 @@ class XliffFileBody extends XliffNode{
 	protected $name = 'body';
 	protected $supportedContainers = array(
     	'groups'	=> 'XliffUnitsGroup',
-		'units'		=> 'XliffUnit'
+		'trans-units'		=> 'XliffUnit'
     );
 }
 
 
+/**
+ * Enter description here ...
+ * @method XliffUnit unit()
+ * @method array units()
+ */
 class XliffUnitsGroup extends XliffNode{
 	protected $name = 'group';
 	protected $supportedContainers = array(
-		'units'		=> 'XliffUnit'
+		'trans-units'		=> 'XliffUnit'
     );
 }
 
@@ -216,7 +324,6 @@ class XliffUnitsGroup extends XliffNode{
 
 /**
  * Enter description here ...
- * @author oyagev
  * @method XliffNode source()
  * @method XliffNode target()
  */
