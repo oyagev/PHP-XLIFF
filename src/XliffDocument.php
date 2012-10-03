@@ -1,7 +1,14 @@
 <?php
+/**
+ * @author Oren Yagev <oyagev@gmail.com>
+ */
 
+/**
+ * Parent class for nodes in the xliff document
+ */
 class XliffNode{
 	
+	//Map tag names to classes
 	static protected $mapNameToClass = array(
 		'xliff'		=> 'XliffDocument',
 		'file'		=> 'XliffFile',
@@ -14,36 +21,91 @@ class XliffNode{
 	);
 	
 	
+	/**
+	 * Holds element's attributes
+	 * @var Array 
+	 */
 	protected $attributes = array();
+	
+	/**
+	 * Holds child nodes that can be repeated inside this node. 
+	 * For example, an xliff document can have multiple "file" nodes
+	 * @var Array[tag-name][0..n]=XliffNode
+	 */
 	protected $containers = array();
+	
+	/**
+	 * Indicate which child nodes are supported 
+	 * @var Array[tag-name]=>Xliff Class
+	 */
 	protected $supportedContainers = array();
 	
+	/**
+	 * Holds child nodes that can be presented only once inside this node. 
+	 * For example, "trans-unit" element can have only one "source" node
+	 * @var Array[tag-name]=XliffNode
+	 */
 	protected $nodes = array();
+	
+	/**
+	 * Indicate which child nodes are supported 
+	 * @var Array[tag-name]=>Xliff Class
+	 */
 	protected $supportedNodes = array();
 	
+	/**
+	 * Node's text, NULL if none
+	 * @var String|NULL
+	 */
 	protected $textContent=NULL;
 	
+	/**
+	 * Node's tag name
+	 * @var string
+	 */
 	protected $name = '';
 	
 	function __construct($name=NULL){
 		if($name) $this->setName($name);
+		//initialize containers array
 		foreach($this->supportedContainers as $name=>$class){
 			$this->containers[$name] = array();
 		}
 	}
 	
+	/**
+	 * @return string
+	 */
 	public function getName()
 	{
 	    return $this->name;
 	}
 
+	/**
+	 * @param string $name
+	 * @return XliffNode
+	 */
 	public function setName($name)
 	{
 	    $this->name = $name;
 	}
+	
+	
+	/**
+	 * Returns the attribute value, FALSE if attribute missing
+	 * @param string $name
+	 * @return Ambigous <boolean, string> - 
+	 */
 	function getAttribute($name){
 		return (isset($this->attributes[$name])) ? $this->attributes[$name] : FALSE;
 	}
+	/**
+	 * Sets an attribute
+	 * @param string $name
+	 * @param string $value
+	 * @throws Exception
+	 * @return XliffNode
+	 */
 	function setAttribute($name, $value){
 		if (!(string)$value){
 			throw new Exception("Attribute must be a string");
@@ -52,6 +114,11 @@ class XliffNode{
 		return $this;
 	}
 	
+	/**
+	 * Set multiple attributes from a key=>value array
+	 * @param Array $attr_array
+	 * @return XliffNode
+	 */
 	function setAttributes($attr_array){
 		foreach($attr_array as $key=>$val){
 			$this->setAttribute($key, $val);
@@ -59,19 +126,32 @@ class XliffNode{
 		return $this;
 	}
 	
+	/**
+	 * @return Ambigous <string, NULL>
+	 */
 	public function getTextContent()
 	{
 	    return $this->textContent;
 	}
 
+	/**
+	 * @param string $textContent
+	 * @return XliffNode
+	 */
 	public function setTextContent($textContent)
 	{
 	    $this->textContent = $textContent;
 	    return $this;
 	}
 	
+	/**
+	 * Append a new node to this element
+	 * @param XliffNode $node - node to append
+	 * @return XliffNode - this node
+	 */
 	public function appendNode(XliffNode $node){
 		
+		//Automatically detect where to append this node
 		if (!empty($this->supportedContainers[$node->getName().'s'])){
 			$this->containers[$node->getName().'s'][] = $node;
 		}elseif(!empty($this->supportedNodes[$node->getName()])){
@@ -85,17 +165,24 @@ class XliffNode{
 	
 	
 	/**
-	 * Support calling $obj->container($new=FALSE)
-	 * or $obj->containers()
+	 * Allow calling $node->tag_name($new=FALSE)
+	 * Supports the following methods:
+	 * 
+	 * 1. $node->tag_name(TRUE) - create a new node for "tag_name" and return the new node
+	 * 2. $node->tag_name() - fetch the last added node for "tag_name", FALSE if none
+	 *
+	 * //On the following, notice that tag names are in plural formation...
+	 * 3. $node->tag_names() - return an array of tag_name nodes
 	 */
 	function __call($name, $args){
 		$append = (!empty($args) && $args[0]==TRUE);
 		$mapNames = array(
 			'/^unit/' => 'trans-unit'			
 		);
+		//re-map short names to actual tag names, for convenience 
 		$name = preg_replace(array_keys($mapNames), array_values($mapNames), $name);
-		//var_dump($name);
-		//plural
+		
+		//plural ? 
 		if (!empty($this->supportedContainers[$name]) ){
 			return $this->containers[$name];
 		}elseif(!empty($this->supportedContainers[$name.'s'])){
@@ -109,6 +196,7 @@ class XliffNode{
 				$this->containers[$pluralName][] = new $cls();
 				
 			}
+			if (empty($this->containers[$pluralName])) return FALSE;
 			return end($this->containers[$pluralName]);
 			
 		}elseif(!empty($this->supportedNodes[$name])){
@@ -125,6 +213,11 @@ class XliffNode{
 		throw new Exception(sprintf("'%s' is not supported for '%s'",$name,get_class($this)));
 	}
 	
+	/**
+	 * Export this node to a DOM object
+	 * @param DOMDocument $doc - parent DOMDocument must be provided
+	 * @return DOMElement
+	 */
 	function toDOMElement(DOMDocument $doc){
 		$element = $doc->createElement($this->getName());
 		foreach($this->attributes as $name=>$value){
@@ -145,24 +238,33 @@ class XliffNode{
 		return $element;
 	}
 	
+	/**
+	 * Convert DOM element to XliffNode structure 
+	 * @param DOMNode $element
+	 * @throws Exception
+	 * @return string|XliffNode
+	 */
 	public static function fromDOMElement(DOMNode $element){
 		if ($element instanceOf DOMText){
 			return $element->nodeValue;
 		}else{
 			$name = $element->tagName;
+			
+			//check if tag is supported
 			if (empty(self::$mapNameToClass[$element->tagName]))
 				throw new Exception(sprintf("Tag name '%s' is unsupported",$name));
 	
-			//Create the XliffNode
+			//Create the XliffNode object (concrete object)
 			$cls = self::$mapNameToClass[$element->tagName];
-			
 			$node = new $cls($element->tagName);
 			/* @var $node XliffNode */
 			
+			//Import attributes
 			foreach ($element->attributes as $attrNode){
 				$node->setAttribute($attrNode->nodeName, $attrNode->nodeValue);
 			}
 			
+			//Continue to nested nodes
 			foreach($element->childNodes as $child){
 				$res = self::fromDOMElement($child);
 				if (is_string($res)){
@@ -181,8 +283,9 @@ class XliffNode{
 } 
 
 /**
- * Enter description here ...
- * @author oyagev
+ * Wrapper class for Xliff documents. 
+ * Externally, you'll want to use this class.
+ * 
  * @method XliffFile file() file()
  */
 class XliffDocument extends XliffNode{
@@ -195,16 +298,7 @@ class XliffDocument extends XliffNode{
     protected $supportedContainers = array(
     	'files' => 'XliffFile',
     );
-    /**
-     * Enter description here ...
-     * @var DOMDocument
-     */
-    protected $doc;
-    /**
-     * Enter description here ...
-     * @var DOMElement
-     */
-    protected $xliff;
+    
     
     protected $version;
     
@@ -216,22 +310,33 @@ class XliffDocument extends XliffNode{
     }
     
    
+    /**
+     * Convert this XliffDocument to DOMDocument
+     * @return DOMDocument
+     */
     public function toDOM(){
     	// create the new document
     	$doc = new DOMDocument();
 
         // create the xliff root element
         $xliff = $this->toDOMElement($doc);
-        // little hack to workaround the unusable php namespace handling
+
         $xliff->setAttribute('xmlns', self::NS . $this->version);
         // add the xliff version
         $xliff->setAttribute('version',$this->version);
-        //$xliff->appendChild($this->toDOMElement($doc));
+
         $doc->appendChild($xliff);
         return $doc;
         
     }
     
+    /**
+     * Build XliffDocument from DOMDocument
+     *  
+     * @param DOMDocument $doc
+     * @throws Exception
+     * @return XliffDocument
+     */
     public static function fromDOM(DOMDocument $doc){
     	if (!($doc->firstChild &&  $doc->firstChild->tagName=='xliff'))
     		throw new Exception("Not an XLIFF document");
@@ -244,9 +349,6 @@ class XliffDocument extends XliffNode{
     	
     	$xliffNamespace = $xlfDoc->namespaceURI;
     	 
-    	$xliff = new XliffDocument($ver);
-    	
-    	
     	$element = self::fromDOMElement($xlfDoc);
     	
     	return $element;
@@ -258,8 +360,8 @@ class XliffDocument extends XliffNode{
 
 
 /**
- * Enter description here ...
- * @author oyagev
+ * Concrete class for file tag
+ * 
  * @method XliffFileBody body()
  * @method XliffFileHeader header()
  */
@@ -272,13 +374,19 @@ class XliffFile extends XliffNode{
 	
 }
 
+/**
+ * Concrete class for file header tag
+ * @author oyagev
+ *
+ */
 class XliffFileHeader extends XliffNode{
 	protected $name = 'header';
 }
 
 
 /**
- * Enter description here ...
+ * Concrete class for file body tag
+ * 
  * @method XliffUnitsGroup group()
  * @method XliffUnit unit()
  * @method array groups()
@@ -294,7 +402,8 @@ class XliffFileBody extends XliffNode{
 
 
 /**
- * Enter description here ...
+ * Concrete class for group tag
+ * 
  * @method XliffUnit unit()
  * @method array units()
  */
@@ -308,7 +417,8 @@ class XliffUnitsGroup extends XliffNode{
 
 
 /**
- * Enter description here ...
+ * Concrete class for trans-unit tag
+ * 
  * @method XliffNode source()
  * @method XliffNode target()
  */
