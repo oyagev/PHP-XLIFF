@@ -89,6 +89,7 @@ class XliffNode{
 	 * or $obj->containers()
 	 */
 	function __call($name, $args){
+		$append = (!empty($args) && $args[0]==TRUE);
 		$mapNames = array(
 			'/^unit/' => 'trans-unit'			
 		);
@@ -100,9 +101,8 @@ class XliffNode{
 		}elseif(!empty($this->supportedContainers[$name.'s'])){
 			$pluralName= $name.'s';
 			
-			//Create new instance if explicitly by argument
-			//or implicitly when no instances exist
-			if ( (!empty($args) && $args[0]==TRUE) || empty($this->containers[$pluralName])){
+			//Create new instance if explicitly specified by argument
+			if ( $append ){
 				
 				$cls = $this->supportedContainers[$pluralName];
 				
@@ -112,16 +112,15 @@ class XliffNode{
 			return end($this->containers[$pluralName]);
 			
 		}elseif(!empty($this->supportedNodes[$name])){
-			//Check if node already created
-			if (empty($this->nodes[$name])){
-				//create new node on-the-fly
+			
+			//Create new node if explicitly required
+			if ($append){
 				$cls = $this->supportedNodes[$name];
-				
 				$this->nodes[$name] = new $cls();
 				$this->nodes[$name]->setName($name);
 			}
 			
-			return $this->nodes[$name];
+			return (!empty($this->nodes[$name])) ? $this->nodes[$name] : FALSE;
 		}
 		throw new Exception(sprintf("'%s' is not supported for '%s'",$name,get_class($this)));
 	}
@@ -160,8 +159,8 @@ class XliffNode{
 			$node = new $cls($element->tagName);
 			/* @var $node XliffNode */
 			
-			foreach ($element->attributes as $attrName=>$attrNode){
-				$node->setAttribute($attrName, $attrNode->nodeValue);
+			foreach ($element->attributes as $attrNode){
+				$node->setAttribute($attrNode->nodeName, $attrNode->nodeValue);
 			}
 			
 			foreach($element->childNodes as $child){
@@ -173,7 +172,6 @@ class XliffNode{
 				}
 			}
 		}
-		
 		return $node;
 		
 	}
@@ -211,9 +209,9 @@ class XliffDocument extends XliffNode{
     protected $version;
     
     
-    function __construct($version='1.2'){
+    function __construct(){
     	parent::__construct();
-    	$this->version = $version;
+    	$this->version = '1.2';
         
     }
     
@@ -243,28 +241,15 @@ class XliffDocument extends XliffNode{
     	/* @var $xlfDoc DOMElement */
     	
     	$ver = $xlfDoc->getAttribute('version') ? $xlfDoc->getAttribute('version') : '1.2';
+    	
     	$xliffNamespace = $xlfDoc->namespaceURI;
     	 
     	$xliff = new XliffDocument($ver);
     	
     	
-    	return self::fromDOMElement($xlfDoc);
-    	return $xliff;
+    	$element = self::fromDOMElement($xlfDoc);
     	
-    	//Use XPATH
-    	$xpath = new DOMXPath($xlfDoc);
-    	$xpath->registerNamespace('xlf', $xliffNamespace);
-    	foreach($xpath->query('/xlf:xliff/xlf:file') as $fileElement){
-    		/* @var $fileElement DOMElement */
-    		$xliff->file(TRUE);
-    		
-	    	foreach ($fileElement->attributes as $attrName => $attrNode) {
-	    		$xliff->file()->setAttribute($attrName, $attrNode->nodeValue);	
-			}
-    		
-			
-			
-    	}
+    	return $element;
     }
     
    
