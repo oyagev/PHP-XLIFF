@@ -44,13 +44,26 @@ $xliff
 					->setTextContent("world hello")
 					->setAttribute('xml:lang', 'fr');
 
+//Add some custom tags which are not officially supported
+$alt = new XliffNode();
+$alt->setName('alt-trans');
+$target2 = new XliffNode();
+$target2->setName('target')->setTextContent("world hello 0")->setAttribute('xml:lang', 'fr');
+$alt->appendNode($target2);
+
+$xliff->file()->body()->unit()->appendNode($alt);
 
 $dom = $xliff->toDOM();
-echo $dom->saveXML();
+$xml = $dom->saveXML();
+
+echo $xml;
 
 echo '=============================================='.PHP_EOL;
 echo "Generating DOM from XLIFF document and back:" . PHP_EOL;
-$xliff2 = XliffDocument::fromDOM($dom);
+$dom2 = new DOMDocument();
+$dom2->loadXML($xml);
+$xliff2 = XliffDocument::fromDOM($dom2);
+
 //var_dump($xliff2);
 echo $xliff2->toDOM()->saveXML();
 

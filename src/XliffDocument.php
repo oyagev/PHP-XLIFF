@@ -88,6 +88,7 @@ class XliffNode{
 	public function setName($name)
 	{
 	    $this->name = $name;
+	    return $this;
 	}
 	
 	
@@ -107,9 +108,9 @@ class XliffNode{
 	 * @return XliffNode
 	 */
 	function setAttribute($name, $value){
-		if (!(string)$value){
+		/*if (!(string)$value){
 			throw new Exception("Attribute must be a string");
-		}
+		}*/
 		$this->attributes[$name] = trim((string)$value);
 		return $this;
 	}
@@ -157,7 +158,7 @@ class XliffNode{
 		}elseif(!empty($this->supportedNodes[$node->getName()])){
 			$this->nodes[$node->getName()] = $node;
 		}else{
-			
+			$this->nodes[$node->getName()] = $node;
 		}
 		return $this;
 	}
@@ -251,11 +252,13 @@ class XliffNode{
 			$name = $element->tagName;
 			
 			//check if tag is supported
-			if (empty(self::$mapNameToClass[$element->tagName]))
-				throw new Exception(sprintf("Tag name '%s' is unsupported",$name));
-	
-			//Create the XliffNode object (concrete object)
-			$cls = self::$mapNameToClass[$element->tagName];
+			if (empty(self::$mapNameToClass[$element->tagName])){
+				$cls = 'XliffNode';
+				//throw new Exception(sprintf("Tag name '%s' is unsupported",$name));
+			}else{
+				//Create the XliffNode object (concrete object)
+				$cls = self::$mapNameToClass[$element->tagName];
+			}
 			$node = new $cls($element->tagName);
 			/* @var $node XliffNode */
 			
