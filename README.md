@@ -20,7 +20,7 @@ This library help in the process of creating and navigating within an XLIFF docu
 				->unit(TRUE)
 					//create a new source element
 					->source(TRUE)
-						->setTextContent("text 1")
+						->setTextContent("text one")
 						->setAttribute('xml:lang', 'en');
 		
 	$xliff
@@ -32,7 +32,7 @@ This library help in the process of creating and navigating within an XLIFF docu
 				->unit()
 					//create a new target element
 					->target(TRUE)
-						->setTextContent("1 txet")
+						->setTextContent("texte un")
 						->setAttribute('xml:lang', 'fr');
 		
 	$xliff
@@ -47,7 +47,7 @@ This library help in the process of creating and navigating within an XLIFF docu
 			->body()
 				->unit()
 					->target(TRUE)
-						->setTextContent("world hello")
+						->setTextContent("Bonjour le monde")
 						->setAttribute('xml:lang', 'fr');
 	
 	
