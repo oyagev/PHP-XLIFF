@@ -1,0 +1,9 @@
+version: '2'
+services:
+  app:
+    build: .
+    ports:
+      - 9005:9005
+    tty: true
+    volumes:
+      - .:/home/oht
